@@ -1,0 +1,26 @@
+Subject to the license terms for the software, you may redistribute the following .DLL files unmodified:
+
+
+	 Solidworks API for .NET
+
+
+		 SolidWorks.Interop.cosworks.dll\n
+		 SolidWorks.Interop.dsgnchk.dll\n
+		 SolidWorks.Interop.fworks.dll\n
+		 SolidWorks.Interop.gtswutilities.dll\n
+		 SolidWorks.Interop.sldcostingapi.dll\n
+		 SolidWorks.Interop.sldtoolboxconfigureaddin.dll\n
+		 SolidWorks.Interop.sldworks.dll\n
+		 SolidWorks.Interop.sustainability.dll\n
+		 SolidWorks.Interop.sw3dprinter.dll\n
+		 SolidWorks.Interop.swbrowser.dll\n
+		 SolidWorks.Interop.swcommands.dll\n
+		 SolidWorks.Interop.swconst.dll\n
+		 SolidWorks.Interop.swdimxpert.dll\n
+		 SolidWorks.Interop.swdocumentmgr.dll\n
+		 SolidWorks.Interop.swinspectionAddIn.dll\n
+		 SolidWorks.Interop.swmotionstudy.dll\n
+		 SolidWorks.Interop.swpartner.dll\n
+		 SolidWorks.Interop.swpublished.dll\n
+		 SolidWorks.Interop.SWRoutingLib.dll\n
+		 SolidWorks.Interop.swscanto3d.dll\n
