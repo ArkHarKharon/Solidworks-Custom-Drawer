@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
+using System.Xml.Linq;
 
 
 namespace Lab_5
@@ -74,25 +75,56 @@ namespace Lab_5
         public SelectionMgr selMng;
 
 
+        // Проверка, инициализирован ли SolidWorks
+        public bool IsInitialized
+        {
+            get
+            {
+                try
+                {
+                    return app != null && app.IActiveDoc2 != null;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        }
+
+
+
 
 
         // Extra methods by KingArtur1000
 
-        /// <summary>
-        /// Сбрасывает модель: либо создаёт новый документ, либо очищает текущий.
-        /// </summary>
-        /// <param name="newDoc">true = создать новый Part, false = очистить текущий</param>
-        public void ResetModel(bool newDoc = false)
+            /// <summary>
+            /// Сбрасывает модель: либо создаёт новый документ, либо очищает текущий.
+            /// </summary>
+            /// <param name="newDoc">true = создать новый Part, false = очистить текущий</param>
+        public void ResetModel(DocumentType documentType, bool newDoc = false, int drawingTemplateNum = 10)
         {
-            if (newDoc)
-            {
-                // Создать новый Part-документ
-                app.NewPart();
-            }
-            else
+            if (!newDoc)
             {
                 app.CloseAllDocuments(true);
-                app.NewPart();
+            }
+
+            switch (documentType)
+            {
+                case DocumentType.DRAWING:
+                    app.NewDrawing(drawingTemplateNum);
+                    break;
+
+                case DocumentType.PART:
+                    app.NewPart();
+                    break;
+
+                case DocumentType.ASSEMBLY:
+                    app.NewAssembly();
+                    break;
+
+                default:
+                    MessageBox.Show("Что-то не то... Не могу создать проект такого типа!");
+                    break;
             }
 
             model = (IModelDoc2)app.IActiveDoc2;
@@ -414,6 +446,5 @@ namespace Lab_5
                 0, 0, false, false
             );
         }
-
     }
 }
