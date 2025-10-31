@@ -22,18 +22,35 @@ namespace Temp
         {
             SWDrawer drawer = new SWDrawer();
             drawer.init();
-
             drawer.newProject(DocumentType.PART);
 
-            drawer.fastCube();
+
+            drawer.selectDefaultPlane(DefaultPlaneName.TOP);
+            drawer.insertSketch(true);
+            drawer.createCenterRectangle(0, 0, 0, 1, 0.5, 0);
+
+            drawer.extrude(0.1);
+
 
             Body2[] bodies = drawer.getAllBodies();
+            Face2[] faces = drawer.getAllFaces(bodies[0]);
 
-            foreach (Body2 body in bodies) 
-            { 
-                drawer.viewBodyFaces(body);
-            
-            }
+            drawer.SelectFaceByIndex(bodies[0],4);
+            drawer.insertSketch(true);
+
+            drawer.createCircleByRadius(0,0,0.1,0.3);
+
+            drawer.extrude(0.2);
+
+            bodies = drawer.getAllBodies(); //обновляю bodies, тк добавилось новое тело
+
+            drawer.SelectFaceByIndex(bodies[0],7);
+            drawer.insertSketch(true);
+
+            drawer.createCircleByRadius(0, 0, 0.4, 0.2);
+
+            drawer.cutHole(HoleType.DISTANCE,false,0.2);
+
 
 
         }

@@ -36,6 +36,22 @@ namespace Temp
         ASSEMBLY
     }
 
+    // Перечисление имен начальных поверхностей
+    public enum DefaultPlaneName 
+    { 
+        TOP,
+        FRONT,
+        RIGHT,
+        TEST
+    }
+
+    // перечисление типов вырезания отверстия
+    public enum HoleType
+    {
+        CUT_THROUGH = swEndConditions_e.swEndCondThroughAll,
+        DISTANCE = swEndConditions_e.swEndCondBlind,
+    }
+
 
 
     // Основной класс библиотеки
@@ -173,10 +189,16 @@ namespace Temp
 
 
         // Создает прямоугольник по координатам 2 противолежащих вершин
-        // Возвращает массив элементов - стороны и диагонали
-        public SketchSegment[] createRectangle(double bX, double bY, double bZ, double eX, double eY, double eZ)
+        public void createRectangle(double bX, double bY, double bZ, double eX, double eY, double eZ)
         {
-            return (SketchSegment[])skMng.CreateCornerRectangle(bX, bY, bZ, eX, eY, eZ);
+           skMng.CreateCornerRectangle(bX, bY, bZ, eX, eY, eZ);
+        }
+
+
+        // Создает прямоугольник по координатам 2 точек - точки пересечения диагоналей и вершине
+        public void createCenterRectangle(double cX, double cY, double cZ, double eX, double eY, double eZ)
+        {
+           skMng.CreateCenterRectangle(cX, cY, cZ, eX, eY, eZ);
         }
 
 
@@ -210,26 +232,60 @@ namespace Temp
         */
 
 
+        // Метод позволяет выделить начальную плоскость (Спереди, Справа и Сверху)
+        // Принимает название плоскости из перечисления DefaultPlaneName
+        public void selectDefaultPlane(DefaultPlaneName planeName)
+        {
+            switch(planeName)
+            {
+                case DefaultPlaneName.TOP:
+                    model.Extension.SelectByID2("СВЕРХУ", "PLANE", 0, 0, 0, false, 0, null, 0);
+                    model.Extension.SelectByID2("TOP", "PLANE", 0, 0, 0, false, 0, null, 0);
+                    break;
+
+                case DefaultPlaneName.FRONT:
+                    model.Extension.SelectByID2("СПЕРЕДИ", "PLANE", 0, 0, 0, false, 0, null, 0);
+                    model.Extension.SelectByID2("FRONT", "PLANE", 0, 0, 0, false, 0, null, 0);
+                    break;
+
+                case DefaultPlaneName.RIGHT:
+                    model.Extension.SelectByID2("СПРАВА", "PLANE", 0, 0, 0, false, 0, null, 0);
+                    model.Extension.SelectByID2("RIGHT", "PLANE", 0, 0, 0, false, 0, null, 0);
+                    break;
+
+                default:
+                    app.SendMsgToUser("Не удалось получить плоскость " + planeName.ToString());
+                    break;  
+            }
+        }
+
+
+        // Метод, открывающий/закрывающий скетч на выделенной плоскости или грани
+        public void insertSketch(bool start)
+        {
+            skMng.InsertSketch(start);
+        }
+
+        public void selectSketchByNumber(int number)
+        {
+            model.ClearSelection2(true);
+            model.Extension.SelectByID2("Sketch" + number, "SKETCH", 0, 0, 0, false, 0, null, 0);
+            model.Extension.SelectByID2("Эскиз" + number, "SKETCH", 0, 0, 0, false, 0, null, 0);
+
+
+        }
+
+
         // Отладочный метод, создающий куб со стороной 1 метр 
         public void fastCube()
         {
-            model.Extension.SelectByID2("Front Plane", "PLANE", 0, 0, 0, false, 0, null, 0);
-            skMng.InsertSketch(true);
+            selectDefaultPlane(DefaultPlaneName.TOP);
+            insertSketch(true);
 
-            // Рисуем квадрат 1x1 метр (1000 мм)
-            skMng.CreateCenterRectangle(0, 0, 0, 0.5, 0.5, 0); // центр в начале координат, половина стороны
+            createCenterRectangle(0, 0, 0, 0.5, 0.5, 0);
 
-            //skMng.InsertSketch(false); // завершаем эскиз
+            extrude(1);
 
-            // Выдавливаем куб на 1 метр
-            ftMng.FeatureExtrusion2(
-                true, false, false,
-                (int)swEndConditions_e.swEndCondBlind,
-                0, 1.0, 0, false, false,
-                false, false, 0, 0, false, false, false, false,
-                true, true, true,
-                0, 0, false
-            );
         }
 
 
@@ -270,6 +326,7 @@ namespace Temp
 
         
         // Метод, поочередно показывающий все грани тела и указывающий их индекс в массиве граней тела
+        // Нужен для определения индекса нужной грани и последующего использования в SelectFaceByIndex()
         public void viewBodyFaces(Body2 body)
         {
             Face2[] faces = getAllFaces(body);
@@ -280,6 +337,42 @@ namespace Temp
                 app.SendMsgToUser("Тело: " + body.Name + "\n" + "Грань: " + j);
 
             }
+        }
+
+
+        // Вытягивает скетч, который был вставлен (важно не выходить из скетча для работы метода)
+        // Принимает длину вытягивания
+        // Если вытягивание происходит не в ту сторону, поставить changeDirection = true
+        public void extrude (double extrusionLength, bool changeDirection = false)
+        {
+            ftMng.FeatureExtrusion2(
+               true, false, changeDirection,
+               (int)swEndConditions_e.swEndCondBlind,
+               0, extrusionLength, 0, false, false,
+               false, false, 0, 0, false, false, false, false,
+               true, true, true,
+               0, 0, false
+           );
+        }
+
+
+
+
+        // Вырезает отверстие по скетчу, который был вставлен (важно не выходить из скетча для работы метода)
+        // Принимает обязательный параметр - тип вырезания по enum HoleType
+        // Также принимает необязательные параметры - длину выреза и флаг для смены направления выреза
+        public void cutHole(HoleType typeOfHole, bool changeDirection = false, double depth = 0)
+        {
+            ftMng.FeatureCut4(
+                true, false, changeDirection,
+                (int)typeOfHole, 0,           
+                depth, 0.0,
+                false, false, false, false,
+                0.0, 0.0,
+                false, false, false, false, false,
+                true, true, true, true, false,
+                0, 0, false, false
+            );
         }
 
     }
