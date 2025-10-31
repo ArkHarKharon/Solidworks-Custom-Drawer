@@ -7,12 +7,15 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
+using System.Windows;
+using System.Windows.Media;
 
 
-namespace Temp
+namespace Lab_5
 {
     /*
+           Чуточку переделанная библиотека от GitHub: @ArkHarKharon
+            
            Данная библиотека пытается собрать все самые используемые методы Solidworks API
            в одном месте, тем самым упрощая процесс создание моделей, а также помогая
            в изучении API.
@@ -24,7 +27,9 @@ namespace Temp
            Автор рекомендует выключить привязки в настройках Solidworks: Параметры (шестеренка) ->
            Эскиз -> Взаимосвязи/привязки -> выключить "Разрешить привязки"
            
+           
        */
+
 
 
 
@@ -37,8 +42,8 @@ namespace Temp
     }
 
     // Перечисление имен начальных поверхностей
-    public enum DefaultPlaneName 
-    { 
+    public enum DefaultPlaneName
+    {
         TOP,
         FRONT,
         RIGHT,
@@ -71,7 +76,46 @@ namespace Temp
 
 
 
+        // Extra methods by KingArtur1000
 
+        /// <summary>
+        /// Сбрасывает модель: либо создаёт новый документ, либо очищает текущий.
+        /// </summary>
+        /// <param name="newDoc">true = создать новый Part, false = очистить текущий</param>
+        public void ResetModel(bool newDoc = false)
+        {
+            if (newDoc)
+            {
+                // Создать новый Part-документ
+                app.NewPart();
+            }
+            else
+            {
+                app.CloseAllDocuments(true);
+                app.NewPart();
+            }
+
+            model = (IModelDoc2)app.IActiveDoc2;
+            part = (PartDoc)model;
+
+            skMng = model.SketchManager;
+            ftMng = model.FeatureManager;
+            selMng = (SelectionMgr)model.SelectionManager;
+        }
+
+
+        /// <summary>
+        /// Создаёт луч (задаёт направление через rX, rY, rZ), если на пересечении с указанной точкой находит грань - выбираем её
+        /// </summary>
+        public bool SelectFaceByRayMM(double wX, double wY, double wZ, double rX, double rY, double rZ)
+        {
+            if (model == null) return false;
+
+            bool isFaceSelected = model.Extension.SelectByRay(wX / 1000, wY / 1000, wZ / 1000, rX / 1000, rY / 1000, rZ / 1000, 0.01, 2, false, 0, 0);
+
+            if (isFaceSelected) { return true; }
+            else { MessageBox.Show("Не удалось выбрать грань!"); return false; }
+        }
 
 
 
@@ -126,7 +170,7 @@ namespace Temp
                     break;
 
                 default:
-                    MessageBox.Show("Хуета, не могу создать проект такого типа!");
+                    MessageBox.Show("Что-то не то... Не могу создать проект такого типа!");
                     break;
             }
 
@@ -135,12 +179,8 @@ namespace Temp
 
             skMng = model.SketchManager;
             ftMng = model.FeatureManager;
-            selMng = model.SelectionManager;
+            selMng = (SelectionMgr)model.SelectionManager;
         }
-
-
-
-
 
 
 
@@ -191,14 +231,14 @@ namespace Temp
         // Создает прямоугольник по координатам 2 противолежащих вершин
         public void createRectangle(double bX, double bY, double bZ, double eX, double eY, double eZ)
         {
-           skMng.CreateCornerRectangle(bX, bY, bZ, eX, eY, eZ);
+            skMng.CreateCornerRectangle(bX, bY, bZ, eX, eY, eZ);
         }
 
 
         // Создает прямоугольник по координатам 2 точек - точки пересечения диагоналей и вершине
         public void createCenterRectangle(double cX, double cY, double cZ, double eX, double eY, double eZ)
         {
-           skMng.CreateCenterRectangle(cX, cY, cZ, eX, eY, eZ);
+            skMng.CreateCenterRectangle(cX, cY, cZ, eX, eY, eZ);
         }
 
 
@@ -236,7 +276,7 @@ namespace Temp
         // Принимает название плоскости из перечисления DefaultPlaneName
         public void selectDefaultPlane(DefaultPlaneName planeName)
         {
-            switch(planeName)
+            switch (planeName)
             {
                 case DefaultPlaneName.TOP:
                     model.Extension.SelectByID2("СВЕРХУ", "PLANE", 0, 0, 0, false, 0, null, 0);
@@ -255,7 +295,7 @@ namespace Temp
 
                 default:
                     app.SendMsgToUser("Не удалось получить плоскость " + planeName.ToString());
-                    break;  
+                    break;
             }
         }
 
@@ -308,7 +348,7 @@ namespace Temp
         // Метод, возвращающий массив граней тела
         public Face2[] getAllFaces(Body2 body)
         {
-            object[] facesObj = body.GetFaces();
+            object[] facesObj = (object[])body.GetFaces();
 
             object[] objArray = facesObj as object[];
 
@@ -321,10 +361,10 @@ namespace Temp
             Face2[] faces = getAllFaces(body);
             Face2 face = faces[faceIndex];
 
-            return ((Entity)face).Select2(false,0);
+            return ((Entity)face).Select2(false, 0);
         }
 
-        
+
         // Метод, поочередно показывающий все грани тела и указывающий их индекс в массиве граней тела
         // Нужен для определения индекса нужной грани и последующего использования в SelectFaceByIndex()
         public void viewBodyFaces(Body2 body)
@@ -343,7 +383,7 @@ namespace Temp
         // Вытягивает скетч, который был вставлен (важно не выходить из скетча для работы метода)
         // Принимает длину вытягивания
         // Если вытягивание происходит не в ту сторону, поставить changeDirection = true
-        public void extrude (double extrusionLength, bool changeDirection = false)
+        public void extrude(double extrusionLength, bool changeDirection = false)
         {
             ftMng.FeatureExtrusion2(
                true, false, changeDirection,
@@ -365,7 +405,7 @@ namespace Temp
         {
             ftMng.FeatureCut4(
                 true, false, changeDirection,
-                (int)typeOfHole, 0,           
+                (int)typeOfHole, 0,
                 depth, 0.0,
                 false, false, false, false,
                 0.0, 0.0,
