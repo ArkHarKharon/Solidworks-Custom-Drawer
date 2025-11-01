@@ -57,16 +57,13 @@ namespace Temp
     // Основной класс библиотеки
     public class SWDrawer
     {
-
-
-
         public SldWorks app;               // Экземпляр приложения Solidworks
         public IModelDoc2 model;           // Активный документ (модель)
         public PartDoc part;
 
         public SketchManager skMng;        // Менеджер скечей (предоставляет функционал для скетчей)
         public FeatureManager ftMng;       // Менеджер фич(??) (нужен для создания бобышек и отверстий)
-        public SelectionMgr selMng;
+        public SelectionMgr selMng;        // Менеджер выбора элементов 
 
 
 
@@ -126,7 +123,7 @@ namespace Temp
                     break;
 
                 default:
-                    MessageBox.Show("Хуета, не могу создать проект такого типа!");
+                    MessageBox.Show("Не могу создать проект такого типа!");
                     break;
             }
 
@@ -240,17 +237,17 @@ namespace Temp
             {
                 case DefaultPlaneName.TOP:
                     model.Extension.SelectByID2("СВЕРХУ", "PLANE", 0, 0, 0, false, 0, null, 0);
-                    model.Extension.SelectByID2("TOP", "PLANE", 0, 0, 0, false, 0, null, 0);
+                    model.Extension.SelectByID2("Top Plane", "PLANE", 0, 0, 0, false, 0, null, 0);
                     break;
 
                 case DefaultPlaneName.FRONT:
                     model.Extension.SelectByID2("СПЕРЕДИ", "PLANE", 0, 0, 0, false, 0, null, 0);
-                    model.Extension.SelectByID2("FRONT", "PLANE", 0, 0, 0, false, 0, null, 0);
+                    model.Extension.SelectByID2("Front Plane", "PLANE", 0, 0, 0, false, 0, null, 0);
                     break;
 
                 case DefaultPlaneName.RIGHT:
                     model.Extension.SelectByID2("СПРАВА", "PLANE", 0, 0, 0, false, 0, null, 0);
-                    model.Extension.SelectByID2("RIGHT", "PLANE", 0, 0, 0, false, 0, null, 0);
+                    model.Extension.SelectByID2("Right Plane", "PLANE", 0, 0, 0, false, 0, null, 0);
                     break;
 
                 default:
