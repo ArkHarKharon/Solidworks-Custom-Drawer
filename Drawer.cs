@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.Tab;
 
 
 namespace Temp
@@ -312,28 +313,79 @@ namespace Temp
             return objArray.Cast<Face2>().ToArray();
         }
 
+        public Edge[] getAllEdges(Face2 face)
+        {
+            object[] edgesObj = face.GetEdges();
+
+            object[] objArray = edgesObj as object[];
+
+            return objArray.Cast<Edge>().ToArray();
+        }
+
+
         // Метод, выделяющий грань тела по индексу массива его граней
-        public bool SelectFaceByIndex(Body2 body, int faceIndex)
+        public void SelectFaceByIndex(Body2 body, int faceIndex)
         {
             Face2[] faces = getAllFaces(body);
             Face2 face = faces[faceIndex];
 
-            return ((Entity)face).Select2(false,0);
+            Entity faceEnt = (Entity)face;
+            faceEnt.Select2(false, 0);
         }
 
-        
+        //Метод, выбирающий ребро по индексу массива ребер грани
+        public void SelectEdgeByIndex(Face2 face, int edgeIndex)
+        {
+            Edge[] edges = getAllEdges(face);
+
+            Entity edge = (Entity)edges[edgeIndex];
+            edge.Select2(false, 0);
+        }
+
+
         // Метод, поочередно показывающий все грани тела и указывающий их индекс в массиве граней тела
         // Нужен для определения индекса нужной грани и последующего использования в SelectFaceByIndex()
-        public void viewBodyFaces(Body2 body)
+        public void viewBodyFaces()
         {
-            Face2[] faces = getAllFaces(body);
+            Body2[] bodies = getAllBodies();
+            Face2[] faces = getAllFaces(bodies[0]);
 
-            for (int j = 0; j < faces.Length; j++)
+            foreach(Body2 body in bodies)
             {
-                SelectFaceByIndex(body, j);
-                app.SendMsgToUser("Тело: " + body.Name + "\n" + "Грань: " + j);
+                for (int j = 0; j < faces.Length; j++)
+                {
+                    SelectFaceByIndex(body, j);
+                    app.RunCommand(169, ""); //int для комманды поворота к нормали
+                    app.SendMsgToUser("Тело: " + body.Name + "\n" + "Грань: " + j);
+
+                }
+            }
+            
+        }
+
+
+        // Метод, поочередно показывающий все ребра грани и указывающий их индекс в массиве ребер грани
+        // Нужен для определения индекса нужного ребра и последующего использования в SelectEdgeByIndex()
+        public void viewFaceEdges(int faceNumber) 
+        {
+            Body2[] bodies = getAllBodies();
+            Face2 face = getAllFaces(bodies[0])[faceNumber];
+
+            SelectFaceByIndex(bodies[0], faceNumber);
+            app.RunCommand(169, ""); //int для комманды поворота к нормали
+
+            model.ClearSelection2(true);
+
+            Edge[] edges = getAllEdges(face);
+
+            for(int i = 0; i < edges.Length; i++)
+            {
+                Entity edge = (Entity)edges[i];
+                edge.Select2(false,0);
+                app.SendMsgToUser("Грань: " + faceNumber  +  "\n" + "Ребро: " +  i);
 
             }
+
         }
 
 
@@ -370,6 +422,39 @@ namespace Temp
                 true, true, true, true, false,
                 0, 0, false, false
             );
+        }
+
+        public void createFillets(int faceNum, double radius, params  int[] edgeNums)
+        {
+           model.ClearSelection2(true);
+
+
+            Body2[] bodies = getAllBodies();
+            Face2 face = getAllFaces(bodies[0])[faceNum];
+            Edge[] edges = getAllEdges(face);
+
+            for (int i = 0; i < edgeNums.Length; i++)
+            {
+                Entity edgeEnt = (Entity)edges[edgeNums[i]];
+                edgeEnt.Select2(true, 0);
+            }
+
+            ftMng.FeatureFillet3(
+                         2,
+                         radius,
+                         0,
+                         0,
+                         0,
+                         0,
+                         0,
+                         0,
+                         0,
+                         0,
+                         0,
+                         0,
+                         0,
+                         0
+                        );
         }
 
     }

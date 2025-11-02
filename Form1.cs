@@ -1,10 +1,12 @@
 ﻿using SolidWorks.Interop.sldworks;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -25,33 +27,8 @@ namespace Temp
             drawer.newProject(DocumentType.PART);
 
 
-            drawer.selectDefaultPlane(DefaultPlaneName.TOP);
-            drawer.insertSketch(true);
-            drawer.createCenterRectangle(0, 0, 0, 1, 0.5, 0);
-
-            drawer.extrude(0.1);
-
-
-            Body2[] bodies = drawer.getAllBodies();
-            Face2[] faces = drawer.getAllFaces(bodies[0]);
-
-            drawer.SelectFaceByIndex(bodies[0],4);
-            drawer.insertSketch(true);
-
-            drawer.createCircleByRadius(0,0,0.1,0.3);
-
-            drawer.extrude(0.2);
-
-            bodies = drawer.getAllBodies(); //обновляю bodies, тк добавилось новое тело
-
-            drawer.SelectFaceByIndex(bodies[0],7);
-            drawer.insertSketch(true);
-
-            drawer.createCircleByRadius(0, 0, 0.4, 0.2);
-
-            drawer.cutHole(HoleType.DISTANCE,false,0.2);
-
-
+            drawer.fastCube();
+            drawer.createFillets(2, 0.1, 1,2);
 
         }
     }
