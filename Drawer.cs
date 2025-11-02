@@ -38,8 +38,8 @@ namespace Temp
     }
 
     // Перечисление имен начальных поверхностей
-    public enum DefaultPlaneName 
-    { 
+    public enum DefaultPlaneName
+    {
         TOP,
         FRONT,
         RIGHT,
@@ -189,14 +189,14 @@ namespace Temp
         // Создает прямоугольник по координатам 2 противолежащих вершин
         public void createRectangle(double bX, double bY, double bZ, double eX, double eY, double eZ)
         {
-           skMng.CreateCornerRectangle(bX, bY, bZ, eX, eY, eZ);
+            skMng.CreateCornerRectangle(bX, bY, bZ, eX, eY, eZ);
         }
 
 
         // Создает прямоугольник по координатам 2 точек - точки пересечения диагоналей и вершине
         public void createCenterRectangle(double cX, double cY, double cZ, double eX, double eY, double eZ)
         {
-           skMng.CreateCenterRectangle(cX, cY, cZ, eX, eY, eZ);
+            skMng.CreateCenterRectangle(cX, cY, cZ, eX, eY, eZ);
         }
 
 
@@ -234,7 +234,7 @@ namespace Temp
         // Принимает название плоскости из перечисления DefaultPlaneName
         public void selectDefaultPlane(DefaultPlaneName planeName)
         {
-            switch(planeName)
+            switch (planeName)
             {
                 case DefaultPlaneName.TOP:
                     model.Extension.SelectByID2("СВЕРХУ", "PLANE", 0, 0, 0, false, 0, null, 0);
@@ -253,7 +253,7 @@ namespace Temp
 
                 default:
                     app.SendMsgToUser("Не удалось получить плоскость " + planeName.ToString());
-                    break;  
+                    break;
             }
         }
 
@@ -350,7 +350,7 @@ namespace Temp
             Body2[] bodies = getAllBodies();
             Face2[] faces = getAllFaces(bodies[0]);
 
-            foreach(Body2 body in bodies)
+            foreach (Body2 body in bodies)
             {
                 for (int j = 0; j < faces.Length; j++)
                 {
@@ -360,13 +360,13 @@ namespace Temp
 
                 }
             }
-            
+
         }
 
 
         // Метод, поочередно показывающий все ребра грани и указывающий их индекс в массиве ребер грани
         // Нужен для определения индекса нужного ребра и последующего использования в SelectEdgeByIndex()
-        public void viewFaceEdges(int faceNumber) 
+        public void viewFaceEdges(int faceNumber)
         {
             Body2[] bodies = getAllBodies();
             Face2 face = getAllFaces(bodies[0])[faceNumber];
@@ -378,11 +378,11 @@ namespace Temp
 
             Edge[] edges = getAllEdges(face);
 
-            for(int i = 0; i < edges.Length; i++)
+            for (int i = 0; i < edges.Length; i++)
             {
                 Entity edge = (Entity)edges[i];
-                edge.Select2(false,0);
-                app.SendMsgToUser("Грань: " + faceNumber  +  "\n" + "Ребро: " +  i);
+                edge.Select2(false, 0);
+                app.SendMsgToUser("Грань: " + faceNumber + "\n" + "Ребро: " + i);
 
             }
 
@@ -392,7 +392,7 @@ namespace Temp
         // Вытягивает скетч, который был вставлен (важно не выходить из скетча для работы метода)
         // Принимает длину вытягивания
         // Если вытягивание происходит не в ту сторону, поставить changeDirection = true
-        public void extrude (double extrusionLength, bool changeDirection = false)
+        public void extrude(double extrusionLength, bool changeDirection = false)
         {
             ftMng.FeatureExtrusion2(
                true, false, changeDirection,
@@ -414,7 +414,7 @@ namespace Temp
         {
             ftMng.FeatureCut4(
                 true, false, changeDirection,
-                (int)typeOfHole, 0,           
+                (int)typeOfHole, 0,
                 depth, 0.0,
                 false, false, false, false,
                 0.0, 0.0,
@@ -424,10 +424,13 @@ namespace Temp
             );
         }
 
-        public void createFillets(int faceNum, double radius, params  int[] edgeNums)
-        {
-           model.ClearSelection2(true);
 
+        // Метод создает скругление на выбранных ребрах
+        // Принимает номер грани faceNum, на которой находятся скругляемые ребра, номер брать из viewBodyFaces()
+        // Принимает радиус скругления, а также номера рёбер, полученные из viewFaceEdges()
+        public void createFillets(int faceNum, double radius, params int[] edgeNums)
+        {
+            model.ClearSelection2(true);
 
             Body2[] bodies = getAllBodies();
             Face2 face = getAllFaces(bodies[0])[faceNum];
@@ -457,5 +460,28 @@ namespace Temp
                         );
         }
 
+
+        // Метод создает фаски на выбранных ребрах
+        // Принимает номер грани faceNum, на которой находятся необходимые ребра, номер брать из viewBodyFaces()
+        // Принимает 2 значения double - расстояния от ребра до начала фасок, а также номера рёбер, полученные из viewFaceEdges()
+        public void createChamfers(int faceNum, double distance1, double distance2, params int[] edgeNums)
+        {
+            model.ClearSelection2(true);
+
+            Body2[] bodies = getAllBodies();
+            Face2 face = getAllFaces(bodies[0])[faceNum];
+            Edge[] edges = getAllEdges(face);
+
+            for (int i = 0; i < edgeNums.Length; i++)
+            {
+                Entity edgeEnt = (Entity)edges[edgeNums[i]];
+                edgeEnt.Select2(true, 0);
+            }
+
+            ftMng.InsertFeatureChamfer((int)swFeatureChamferOption_e.swFeatureChamferTangentPropagation,
+                (int)swChamferType_e.swChamferDistanceDistance, distance1, 0, distance2, 0, 0, 0);
+
+
+        }
     }
 }

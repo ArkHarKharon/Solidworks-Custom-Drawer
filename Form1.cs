@@ -1,4 +1,5 @@
 ﻿using SolidWorks.Interop.sldworks;
+using SolidWorks.Interop.swconst;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -28,7 +29,8 @@ namespace Temp
 
 
             drawer.fastCube();
-            drawer.createFillets(2, 0.1, 1,2);
+            drawer.createFillets(2, 0.1, 0,1,2,3);
+            drawer.createChamfers(0, 0.1, 0.2, 0, 1, 2, 3);
 
         }
     }
