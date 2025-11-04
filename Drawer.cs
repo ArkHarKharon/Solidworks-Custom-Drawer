@@ -4,6 +4,7 @@ using SolidWorks.Interop.swconst;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -59,8 +60,9 @@ namespace Temp
     public class SWDrawer
     {
         public SldWorks app;               // Экземпляр приложения Solidworks
-        public IModelDoc2 model;           // Активный документ (модель)
-        public PartDoc part;
+        public ModelDoc2 model;           // Активный документ (модель)
+        public PartDoc part;               // Документ детали
+        public AssemblyDoc assembly;       // Документ сборки
 
         public SketchManager skMng;        // Менеджер скечей (предоставляет функционал для скетчей)
         public FeatureManager ftMng;       // Менеджер фич(??) (нужен для создания бобышек и отверстий)
@@ -125,15 +127,20 @@ namespace Temp
 
                 default:
                     MessageBox.Show("Не могу создать проект такого типа!");
-                    break;
+                    return;
             }
 
-            model = (IModelDoc2)app.IActiveDoc2;
-            part = (PartDoc)model;
+            model = (ModelDoc2)app.IActiveDoc2;
 
-            skMng = model.SketchManager;
-            ftMng = model.FeatureManager;
-            selMng = model.SelectionManager;
+            if (documentType == DocumentType.PART)
+                part = (PartDoc)model;
+
+            if (documentType != DocumentType.ASSEMBLY)
+            {
+                skMng = model.SketchManager;
+                ftMng = model.FeatureManager;
+                selMng = model.SelectionManager;
+            }
         }
 
 
@@ -482,6 +489,65 @@ namespace Temp
                 (int)swChamferType_e.swChamferDistanceDistance, distance1, 0, distance2, 0, 0, 0);
 
 
+        }
+
+
+
+
+
+        /*
+                   --- Методы для работы со сборками --- 
+
+           Далее приведены основные методы для раборты со сборками: добавление деталей, (хз, не придумал пока...)
+
+       */
+
+        // Метод импортирует деталь в сборку
+        // Принимает абсолютный путь до файла .SLDPRT или .SLDASM, также принимает x,y и z примерного местоположения
+
+        public void importPart(string path, double x, double y, double z)
+        {
+            model = (ModelDoc2)app.IActiveDoc2;
+            assembly = model as AssemblyDoc;
+
+            app.OpenDoc6(
+                      path,
+                      Path.GetExtension(path).ToLower() == ".sldasm"
+                          ? (int)swDocumentTypes_e.swDocASSEMBLY
+                          : (int)swDocumentTypes_e.swDocPART,
+                      (int)swOpenDocOptions_e.swOpenDocOptions_LoadLightweight,
+                      "", 0, 0);
+
+            assembly.AddComponent2(path, x, y, z);
+
+            app.CloseDoc(path);
+
+        }
+
+
+        // Импортирует все детали из папки
+        // Принимает абсолютный путь до папки, а также расстояние между центрами деталей
+        public void importPartsFromFolder(string folderPath, double offset)
+        {
+            String[] files = Directory.GetFiles(folderPath);
+
+            double x = 0;
+            double y = 0;
+
+            for (int i = 0; i < files.Length; i++)
+            {
+                importPart(files[i], x , 0, y);
+                app.SendMsgToUser("Значение x: " + x + "\nЗначение y: " + y);
+
+                x += offset;
+
+                if (i % 5 == 0 && i != 0)
+                {
+                    y += offset;
+                    x = 0;
+                }
+                    
+            }
         }
     }
 }

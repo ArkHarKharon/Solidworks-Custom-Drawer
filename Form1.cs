@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -25,12 +26,25 @@ namespace Temp
         {
             SWDrawer drawer = new SWDrawer();
             drawer.init();
-            drawer.newProject(DocumentType.PART);
+            drawer.newProject(DocumentType.ASSEMBLY);
 
 
-            drawer.fastCube();
-            drawer.createFillets(2, 0.1, 0,1,2,3);
-            drawer.createChamfers(0, 0.1, 0.2, 0, 1, 2, 3);
+            String path = textBox1.Text;
+
+            if (checkBox1.Checked)
+                drawer.importPartsFromFolder(@path, 0.1);
+            else
+                drawer.importPart(@path, 0, 0, 0);
+
+        }
+
+        private void label1_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void textBox1_TextChanged(object sender, EventArgs e)
+        {
 
         }
     }
