@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -90,27 +91,46 @@ namespace Temp
 
 
 
-        // Закрывает текущие экземпляры Solidworks и запускает новый 
-        public void init()
+        public bool init()
         {
-            Process[] processes = Process.GetProcessesByName("SLDWORKS");
-            foreach (Process process in processes)
+            // Открыть SolidWorks либо получить экземпляр открытого приложения
+            try
             {
-                process.CloseMainWindow();
-                process.Kill();
+                // Попытка получить существующий экземпляр SolidWorks
+                app = (SldWorks)Marshal.GetActiveObject("SldWorks.Application");
+                Console.WriteLine("Подключен к существующему SolidWorks");
+                return true;
             }
-
-            app = Activator.CreateInstance(Type.GetTypeFromProgID("SldWorks.Application")) as SldWorks;
-            app.Visible = true;
-
-
+            catch
+            {
+                try
+                {
+                    // Если не нашли открытый - создаем новый
+                    app = new SldWorks();
+                    app.FrameState = (int)swWindowState_e.swWindowMaximized;
+                    app.Visible = true;
+                    Console.WriteLine("Запущен новый экземпляр SolidWorks");
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Не удалось подключиться к SolidWorks: {ex.Message}");
+                    return false;
+                }
+            }
         }
-
 
         // Создает новый проект, тип проекта выбирается по перечислению DocumentType
         // Принимает необязательный параметр - номер шаблона чертежа
         public void newProject(DocumentType documentType, int drawingTemplateNum = 10)
         {
+            // Проверяем, что SolidWorks инициализирован
+            if (app == null)
+            {
+                MessageBox.Show("SolidWorks не инициализирован. Вызовите init() сначала.");
+                return;
+            }
+
             switch (documentType)
             {
                 case DocumentType.DRAWING:
@@ -127,21 +147,30 @@ namespace Temp
 
                 default:
                     MessageBox.Show("Не могу создать проект такого типа!");
-                    return;
+                    break;
             }
 
+            // Получаем активный документ
             model = (ModelDoc2)app.IActiveDoc2;
 
-            if (documentType == DocumentType.PART)
+            if (model == null)
+            {
+                MessageBox.Show("Не удалось создать документ");
+                return;
+            }
+
+            // Размеры в миллиметрах
+            model.SetUnits((short)swLengthUnit_e.swMM, (short)swFractionDisplay_e.swDECIMAL, 0, 0, false);
+
+            // Приводим к PartDoc только если это деталь
+            if (model is PartDoc)
                 part = (PartDoc)model;
 
-            if (documentType != DocumentType.ASSEMBLY)
-            {
-                skMng = model.SketchManager;
-                ftMng = model.FeatureManager;
-                selMng = model.SelectionManager;
-            }
+            skMng = model.SketchManager;
+            ftMng = model.FeatureManager;
+            selMng = model.SelectionManager;
         }
+
 
 
 
@@ -527,7 +556,7 @@ namespace Temp
 
         // Импортирует все детали из папки
         // Принимает абсолютный путь до папки, а также расстояние между центрами деталей
-        public void importPartsFromFolder(string folderPath, double offset)
+        public void importPartsFromFolder(string folderPath, double offset = 0.1, int rawLength = 5)
         {
             String[] files = Directory.GetFiles(folderPath);
 
@@ -537,11 +566,10 @@ namespace Temp
             for (int i = 0; i < files.Length; i++)
             {
                 importPart(files[i], x , 0, y);
-                app.SendMsgToUser("Значение x: " + x + "\nЗначение y: " + y);
 
                 x += offset;
 
-                if (i % 5 == 0 && i != 0)
+                if (i % rawLength == 0 && i != 0)
                 {
                     y += offset;
                     x = 0;
