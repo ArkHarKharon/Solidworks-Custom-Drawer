@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -53,6 +54,7 @@ namespace Temp
     {
         CUT_THROUGH = swEndConditions_e.swEndCondThroughAll,
         DISTANCE = swEndConditions_e.swEndCondBlind,
+        OFFSET = swEndConditions_e.swEndCondOffsetFromSurface
     }
 
 
@@ -98,7 +100,6 @@ namespace Temp
             {
                 // Попытка получить существующий экземпляр SolidWorks
                 app = (SldWorks)Marshal.GetActiveObject("SldWorks.Application");
-                Console.WriteLine("Подключен к существующему SolidWorks");
                 return true;
             }
             catch
@@ -109,7 +110,6 @@ namespace Temp
                     app = new SldWorks();
                     app.FrameState = (int)swWindowState_e.swWindowMaximized;
                     app.Visible = true;
-                    Console.WriteLine("Запущен новый экземпляр SolidWorks");
                     return true;
                 }
                 catch (Exception ex)
@@ -172,6 +172,43 @@ namespace Temp
         }
 
 
+        public bool connectToOpenedPart()
+        {
+           
+
+            // Получаем активный документ
+            model = app.IActiveDoc2 as ModelDoc2;
+
+            if (model == null)
+            {
+                app.SendMsgToUser("Нет активного документа в SolidWorks.");
+                return false;
+            }
+
+            // Проверяем что документ — деталь
+            if (!(model is PartDoc))
+            {
+                app.SendMsgToUser("Активный документ не является деталью (PartDoc).");
+                return false;
+            }
+
+            // Привязка PartDoc
+            part = (PartDoc)model;
+
+            // Инициализация менеджеров
+            skMng = model.SketchManager;
+            ftMng = model.FeatureManager;
+            selMng = model.SelectionManager;
+
+            model.SetUnits(
+                (short)swLengthUnit_e.swMM,
+                (short)swFractionDisplay_e.swDECIMAL,
+                0, 0, false
+            );
+
+            app.SendMsgToUser("Подключен к открытой детали.");
+            return true;
+        }
 
 
 
@@ -577,5 +614,251 @@ namespace Temp
                     
             }
         }
+
+
+
+
+
+        /*
+                         --- Методы для обработки выбора пользователя (бета) --- 
+
+            Далее приведены основные методы для обработки выбора ползователя
+
+        */
+
+        // Метод, позволяющий получить массив выделенных объектов
+        public List<object> GetSelectedObjects()
+        {
+            List<object> result = new List<object>();
+
+            if (model == null)
+                return result;
+
+            SelectionMgr sel = model.SelectionManager;
+            int count = sel.GetSelectedObjectCount();
+
+            for (int i = 1; i <= count; i++)
+            {
+                object obj = sel.GetSelectedObject6(i, -1);
+                if (obj != null)
+                    result.Add(obj);
+            }
+
+            return result;
+        }
+
+
+
+    }
+
+    /*
+                ---- Вспомогательный класс для вырезания массива отверстий -----
+
+        Класс предоставляет базовый функционал, необходимый для вырезания отверсий в теле. Место вырезания 
+        отверстий ограничивается объемом, полученным 2 выделенными точками.
+     
+     
+     */
+    enum Directions
+    {
+        OX,
+        OY,
+        OZ
+    }
+
+
+
+
+    public class HolesArrayCutter
+    {
+        public class Point
+        {
+            public double x;
+            public double y;
+            public double z;
+
+            public Point() { }
+
+            public Point(double x, double y, double z)
+            {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+            }
+
+            public void set(double x, double y, double z)
+            {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+            }
+        }
+
+
+        SWDrawer drawer = new SWDrawer();
+
+        Point bottomLeftPoint = new Point();
+        Point topRightPoint = new Point();
+
+
+
+        private int verticiesNum;
+        private List<Point> circlesCenters;
+        private double radius;
+
+        private double offsetX;
+        private double offsetY;
+
+        int verticalDirection;
+
+        public HolesArrayCutter(SWDrawer drawer)
+        {
+            this.drawer = drawer;
+        }
+
+
+        // Основной метод для вырезания массива отверстий
+        // Принимает число отверстий в ряду и строке, количество вершин у эскиза отверстия
+        // offset позволяет сделать отверстие внутри тела, на расстоянии offset от нижей и верхней граней области
+        public void cutHoles(int rowsNum, int columsNum, int verticiesNum,double angle = 0.0, double offset = 0.0, bool reverse = false)
+        {
+            List<object> temp = drawer.GetSelectedObjects();
+            List<Vertex> selected = new List<Vertex>();
+
+            foreach (object obj in temp)
+            {
+                if (obj is Vertex)
+                    selected.Add((Vertex)obj);
+            }
+
+
+            if (selected == null)
+            {
+                drawer.app.SendMsgToUser("Не удалось получить массив выбранных элементов!");
+                return;
+            }
+                
+
+            Vertex bottom = (Vertex)selected[0];
+            Vertex top = (Vertex)selected[1];
+
+            setPoints(bottom, top);
+            setCircles(rowsNum, columsNum);
+
+            if (offset == 0.0)
+            {
+                drawer.selectDefaultPlane(DefaultPlaneName.TOP);
+            }
+
+            else
+            {
+                // Выбор для 1 ограничения
+                drawer.model.Extension.SelectByID2("СВЕРХУ", "PLANE", 0, 0, 0, false, 0, null, 0);
+                drawer.model.Extension.SelectByID2("Top Plane", "PLANE", 0, 0, 0, false, 0, null, 0);
+
+
+                // Выбор для 2 ограничения
+                drawer.model.Extension.SelectByID2("СВЕРХУ", "PLANE", 0, 0, 0, false, 1, null, 0);
+                drawer.model.Extension.SelectByID2("Top Plane", "PLANE", 0, 0, 0, false, 1, null, 0);
+
+                RefPlane planeRef =  drawer.ftMng.InsertRefPlane((int)swRefPlaneReferenceConstraints_e.swRefPlaneReferenceConstraint_Parallel, 0.0,
+                    (int)swRefPlaneReferenceConstraints_e.swRefPlaneReferenceConstraint_Distance, offset, 0, 0.0);
+
+                Entity plane = (Entity)planeRef;
+
+                drawer.model.ClearSelection2(true);
+
+                plane.Select(true);
+            }
+
+            drawer.insertSketch(true);
+
+            foreach (Point p in circlesCenters)
+            {
+                drawer.skMng.CreatePolygon(p.x, -p.z, 0, p.x + radius * Math.Cos(angle * Math.PI / 180.0), -p.z + radius * Math.Sin(angle * Math.PI / 180.0), 0, verticiesNum, false);
+            }
+
+            if (offset == 0.0)
+                drawer.cutHole(HoleType.CUT_THROUGH, true);
+            else
+            {
+                double depth = Math.Abs(top.GetPoint()[2] - bottom.GetPoint()[2]) - 2 * offset;
+                drawer.app.SendMsgToUser("Глубина:" +  depth);
+                drawer.cutHole(HoleType.DISTANCE, true, depth);
+
+            }
+        }
+        
+
+        //Метод, обрабатывающий выделение точек пользователем
+        private void setPoints(Vertex bottom, Vertex top)
+        {
+            bottomLeftPoint.set(bottom.GetPoint()[0], bottom.GetPoint()[1], bottom.GetPoint()[2]);
+            topRightPoint.set(top.GetPoint()[0], top.GetPoint()[1], top.GetPoint()[2]);
+
+         
+        }
+
+        // Метод определяет местоположение центров окружностей и их радиус
+        // В эти окружности вписываются эскизы отверстий
+        private void setCircles(int rowsNum, int columsNum, double offset = 0)
+        {
+            if (rowsNum <= 0) throw new ArgumentException("rowsNum must be > 0");
+            if (columsNum <= 0) throw new ArgumentException("columsNum must be > 0");
+
+            circlesCenters = new List<Point>();
+
+            // Координаты прямоугольника
+            double minX = Math.Min(bottomLeftPoint.x, topRightPoint.x);
+            double maxX = Math.Max(bottomLeftPoint.x, topRightPoint.x);
+            double minZ = Math.Min(bottomLeftPoint.z, topRightPoint.z);
+            double maxZ = Math.Max(bottomLeftPoint.z, topRightPoint.z);
+
+            double totalSpaceX = maxX - minX;
+            double totalSpaceZ = maxZ - minZ;
+
+            if (totalSpaceX <= 0 || totalSpaceZ <= 0)
+                throw new InvalidOperationException("Invalid rectangle size.");
+
+            // Минимальный зазор
+            double minGap = offset > 0 ? offset : 0.02 * Math.Min(totalSpaceX, totalSpaceZ);
+            if (minGap < 1e-9) minGap = 1e-9;
+
+            // --- Вычисление максимально возможных радиусов по каждой оси ---
+            double radiusX = (totalSpaceX - (columsNum + 1) * minGap) / (2.0 * columsNum);
+            double radiusZ = (totalSpaceZ - (rowsNum + 1) * minGap) / (2.0 * rowsNum);
+
+            if (radiusX <= 0 || radiusZ <= 0)
+                throw new InvalidOperationException("Not enough space for circles");
+
+            // Итоговый радиус — минимальный (чтобы точно влезало по обеим сторонам)
+            radius = Math.Min(radiusX, radiusZ);
+
+            // Перерасчёт отступов по итоговому радиусу
+            offsetX = (totalSpaceX - 2.0 * radius * columsNum) / (columsNum + 1);
+            offsetY = (totalSpaceZ - 2.0 * radius * rowsNum) / (rowsNum + 1);
+
+            if (offsetX < 0) offsetX = 0;
+            if (offsetY < 0) offsetY = 0;
+
+            // Стартовые координаты
+            double startX = minX + offsetX + radius;
+            double startZ = minZ + offsetY + radius;
+
+            // --- Формирование сетки окружностей ---
+            for (int r = 0; r < rowsNum; r++)
+            {
+                for (int c = 0; c < columsNum; c++)
+                {
+                    double cx = startX + c * (2.0 * radius + offsetX);
+                    double cz = startZ + r * (2.0 * radius + offsetY);
+
+                    circlesCenters.Add(new Point(cx, bottomLeftPoint.y, cz));
+                }
+            }
+        }
+
+
+
     }
 }
