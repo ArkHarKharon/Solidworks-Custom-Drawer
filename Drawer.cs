@@ -57,7 +57,16 @@ namespace Temp
         OFFSET = swEndConditions_e.swEndCondOffsetFromSurface
     }
 
-
+    // Перечисление с основными типами объектов
+    public enum ObjectType
+    {
+        EDGE = swSelectType_e.swSelEDGES,
+        FACE = swSelectType_e.swSelFACES,
+        VERTEX = swSelectType_e.swSelVERTICES,
+        PLANE = swSelectType_e.swSelDATUMPLANES,
+        AXIS = swSelectType_e.swSelDATUMAXES,
+        SKETCH_SEGMENT = swSelectType_e.swSelSKETCHSEGS
+    }
 
     // Основной класс библиотеки
     public class SWDrawer
@@ -85,14 +94,10 @@ namespace Temp
             Далее приведены методы, необходимые для иницализации класса, запуска Solidworks
             и создания проекта.
          
-            Данный модуль нуждается в переработке / улучшении.
         */
 
-
-
-
-
-
+        // Пытается подключиться к открытому экземпляру Soldiworks
+        // Если не получается - капускает новый экземпляр
         public bool init()
         {
             // Открыть SolidWorks либо получить экземпляр открытого приложения
@@ -119,6 +124,7 @@ namespace Temp
                 }
             }
         }
+
 
         // Создает новый проект, тип проекта выбирается по перечислению DocumentType
         // Принимает необязательный параметр - номер шаблона чертежа
@@ -171,7 +177,7 @@ namespace Temp
             selMng = model.SelectionManager;
         }
 
-
+        // Пытается подключиться к открытой детали
         public bool connectToOpenedPart()
         {
            
@@ -211,6 +217,41 @@ namespace Temp
         }
 
 
+        // Пытается подключиться к открытой сборке
+        public bool connectToOpenedAssembly()
+        {
+            // Получаем активный документ
+            model = app.IActiveDoc2 as ModelDoc2;
+
+            if (model == null)
+            {
+                app.SendMsgToUser("Нет активного документа в SolidWorks.");
+                return false;
+            }
+
+            // Проверяем что документ — деталь
+            if (!(model is AssemblyDoc))
+            {
+                app.SendMsgToUser("Активный документ не является сборкой (AssemblyDoc).");
+                return false;
+            }
+
+            // Привязка PartDoc
+            assembly = (AssemblyDoc)model;
+
+            // Инициализация менеджеров
+            ftMng = model.FeatureManager;
+            selMng = model.SelectionManager;
+
+            model.SetUnits(
+                (short)swLengthUnit_e.swMM,
+                (short)swFractionDisplay_e.swDECIMAL,
+                0, 0, false
+            );
+
+            app.SendMsgToUser("Подключен к открытой сборке.");
+            return true;
+        }
 
 
 
@@ -418,20 +459,16 @@ namespace Temp
 
         // Метод, поочередно показывающий все грани тела и указывающий их индекс в массиве граней тела
         // Нужен для определения индекса нужной грани и последующего использования в SelectFaceByIndex()
-        public void viewBodyFaces()
+        public void viewBodyFaces(Body2 body)
         {
-            Body2[] bodies = getAllBodies();
-            Face2[] faces = getAllFaces(bodies[0]);
+            Face2[] faces = getAllFaces(body);
 
-            foreach (Body2 body in bodies)
+            for (int j = 0; j < faces.Length; j++)
             {
-                for (int j = 0; j < faces.Length; j++)
-                {
-                    SelectFaceByIndex(body, j);
-                    app.RunCommand(169, ""); //int для комманды поворота к нормали
-                    app.SendMsgToUser("Тело: " + body.Name + "\n" + "Грань: " + j);
+                SelectFaceByIndex(body, j);
+                app.RunCommand(169, ""); //int для комманды поворота к нормали
+                app.SendMsgToUser("Тело: " + body.Name + "\n" + "Грань: " + j);
 
-                }
             }
 
         }
@@ -558,6 +595,39 @@ namespace Temp
         }
 
 
+        // Метод для удаления нескольких элементов дерева детали, которые были созданы последними
+        // Принимает количество эементов с конца, которые необходимо удалить
+        public void deleteLastFeatures(int numberOfElements)
+        {
+            if (model == null || numberOfElements <= 0)
+                return;
+
+            List<Feature> featureList = new List<Feature>();
+            Feature feat = model.FirstFeature();
+
+            // Собираем все фичи в список
+            while (feat != null)
+            {
+                featureList.Add(feat);
+                feat = feat.GetNextFeature();
+            }
+
+            // Удаляем последние n фич
+            int count = featureList.Count;
+            for (int i = count - 1; i >= count - numberOfElements && i >= 0; i--)
+            {
+                Feature f = featureList[i];
+                if (f != null)
+                {
+                    bool selected = f.Select2(false, -1);
+                    if (selected)
+                    {
+                        model.Extension.DeleteSelection2((int)swDeleteSelectionOptions_e.swDelete_Absorbed);
+                    }
+                }
+            }
+        }
+
 
 
 
@@ -617,6 +687,41 @@ namespace Temp
 
 
 
+        // Метод возвращает список тел сборки
+        public List<Body2> GetAllBodiesFromAssembly()
+        {
+            var result = new List<Body2>();
+
+            if (assembly == null)
+                return result;
+
+            // Получаем все компоненты первого уровня
+            object[] comps = (object[])assembly.GetComponents(true); // true = рекурсивно
+
+            foreach (object o in comps)
+            {
+                Component2 comp = o as Component2;
+                if (comp == null) continue;
+
+                ModelDoc2 model = comp.GetModelDoc2();
+                if (model == null) continue;
+
+                PartDoc part = model as PartDoc;
+                if (part == null) continue; // компонент может быть подпроектирован
+
+                // Получаем тела у детали
+                object bodiesObj = part.GetBodies2((int)swBodyType_e.swSolidBody, true);
+                if (bodiesObj == null) continue;
+
+                foreach (Body2 b in (object[])bodiesObj)
+                {
+                    result.Add(b);
+                }
+            }
+
+            return result;
+        }
+
 
 
         /*
@@ -634,12 +739,11 @@ namespace Temp
             if (model == null)
                 return result;
 
-            SelectionMgr sel = model.SelectionManager;
-            int count = sel.GetSelectedObjectCount();
+            int count = selMng.GetSelectedObjectCount();
 
             for (int i = 1; i <= count; i++)
             {
-                object obj = sel.GetSelectedObject6(i, -1);
+                object obj = selMng.GetSelectedObject6(i, -1);
                 if (obj != null)
                     result.Add(obj);
             }
@@ -659,14 +763,13 @@ namespace Temp
      
      
      */
+
     enum Directions
     {
         OX,
         OY,
         OZ
     }
-
-
 
 
     public class HolesArrayCutter
@@ -720,6 +823,8 @@ namespace Temp
         // Основной метод для вырезания массива отверстий
         // Принимает число отверстий в ряду и строке, количество вершин у эскиза отверстия
         // offset позволяет сделать отверстие внутри тела, на расстоянии offset от нижей и верхней граней области
+        // Для работы метода необходимо предварительно выделить 2 вершины (Vertex)
+        // Эти вершины образуют призматическую область, в котороый вырезаются отверстия
         public void cutHoles(int rowsNum, int columsNum, int verticiesNum,double angle = 0.0, double offset = 0.0, bool reverse = false)
         {
             List<object> temp = drawer.GetSelectedObjects();

@@ -32,12 +32,8 @@ namespace Temp
 
         private void button2_Click(object sender, EventArgs e)
         {
-            List<object> selected = drawer.GetSelectedObjects();
-
             HolesArrayCutter cutter = new HolesArrayCutter(drawer);
-
-
-            cutter.cutHoles(int.Parse(textBox1.Text), int.Parse(textBox2.Text), int.Parse(textBox3.Text), double.Parse(textBox5.Text),double.Parse(textBox4.Text));
+            cutter.cutHoles(int.Parse(textBox1.Text), int.Parse(textBox2.Text), int.Parse(textBox3.Text), double.Parse(textBox5.Text), double.Parse(textBox4.Text));
 
         }
 
@@ -64,6 +60,11 @@ namespace Temp
         private void textBox5_TextChanged(object sender, EventArgs e)
         {
 
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            drawer.deleteLastFeatures(2);
         }
     }
 }
